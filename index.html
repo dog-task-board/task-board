@@ -41,6 +41,7 @@
   .task .row span:last-child{font-weight:600;color:var(--ink)}
   .task.overdue{border-color:var(--danger)}
   .task.overdue .deadline{color:var(--danger);font-weight:700}
+  .task .memo{font-size:.74rem;color:var(--soft);margin-top:6px;padding-top:6px;border-top:1px dashed var(--line);white-space:pre-wrap}
   .task .move{display:flex;gap:4px;margin-top:8px}
   .task .move button{flex:1;font-size:.68rem;padding:5px 2px;border-radius:6px;border:1px solid var(--line);background:#fff;color:var(--soft)}
   .task .move button:active{background:var(--gold);color:#fff}
@@ -90,7 +91,12 @@
     <form id="taskForm">
       <input type="hidden" id="taskId">
       <div class="field"><label>タスク名・詳細</label><textarea id="f_title" required></textarea></div>
-      <div class="field"><label>担当者</label><input type="text" id="f_assignee"></div>
+      <div class="field"><label>担当者</label>
+        <select id="f_assignee_select">
+          <option>知也</option><option>剛</option><option>文沙</option><option>美奈</option><option>惟</option><option>各務</option><option value="__other__">その他（手入力）</option>
+        </select>
+      </div>
+      <div class="field" id="f_assignee_other_wrap" style="display:none"><label>お名前を入力</label><input type="text" id="f_assignee_other"></div>
       <div class="field"><label>ステータス</label>
         <select id="f_status">
           <option>未着手</option><option>対応中</option><option>先方回答待ち</option><option>完了</option>
@@ -100,6 +106,7 @@
       <div class="field"><label>先方連絡日</label><input type="date" id="f_contacted"></div>
       <div class="field"><label>先方期限</label><input type="date" id="f_deadline"></div>
       <div class="field"><label>社内予定日</label><input type="date" id="f_internal"></div>
+      <div class="field"><label>メモ</label><textarea id="f_memo" placeholder="補足があれば自由に"></textarea></div>
       <div class="sheet-actions">
         <button type="button" class="btn-cancel" id="btnCancel">閉じる</button>
         <button type="button" class="btn-delete" id="btnDelete" style="display:none">削除</button>
@@ -112,6 +119,7 @@
 <script>
 const STORE_KEY = 'taskBoardData_v1';
 const STATUSES = ['未着手','対応中','先方回答待ち','完了'];
+const MEMBERS = ['知也','剛','文沙','美奈','惟','各務'];
 
 function loadTasks(){ try{ return JSON.parse(localStorage.getItem(STORE_KEY)) || []; }catch(e){ return []; } }
 function saveTasks(tasks){ localStorage.setItem(STORE_KEY, JSON.stringify(tasks)); }
@@ -166,6 +174,7 @@ function renderCard(t){
     ${t.assignee ? `<div class="row"><span>担当</span><span>${escapeHtml(t.assignee)}</span></div>` : ''}
     ${t.deadline ? `<div class="row deadline"><span>先方期限</span><span>${t.deadline}</span></div>` : ''}
     ${t.internal ? `<div class="row"><span>社内予定日</span><span>${t.internal}</span></div>` : ''}
+    ${t.memo ? `<div class="memo">${escapeHtml(t.memo)}</div>` : ''}
     <div class="move"></div>
   `;
   const moveEl = el.querySelector('.move');
@@ -189,17 +198,33 @@ function openForm(task){
   document.getElementById('formTitle').textContent = task ? 'タスクを編集' : '新しいタスク';
   document.getElementById('taskId').value = task ? task.id : '';
   document.getElementById('f_title').value = task ? task.title : '';
-  document.getElementById('f_assignee').value = task ? (task.assignee||'') : '';
+  const assignee = task ? (task.assignee||'') : '';
+  const assigneeSelect = document.getElementById('f_assignee_select');
+  const assigneeOtherWrap = document.getElementById('f_assignee_other_wrap');
+  if(assignee && !MEMBERS.includes(assignee)){
+    assigneeSelect.value = '__other__';
+    document.getElementById('f_assignee_other').value = assignee;
+    assigneeOtherWrap.style.display = 'block';
+  } else {
+    assigneeSelect.value = assignee || MEMBERS[0];
+    document.getElementById('f_assignee_other').value = '';
+    assigneeOtherWrap.style.display = 'none';
+  }
   document.getElementById('f_status').value = task ? task.status : '未着手';
   document.getElementById('f_requested').value = task ? (task.requested||'') : '';
   document.getElementById('f_contacted').value = task ? (task.contacted||'') : '';
   document.getElementById('f_deadline').value = task ? (task.deadline||'') : '';
   document.getElementById('f_internal').value = task ? (task.internal||'') : '';
+  document.getElementById('f_memo').value = task ? (task.memo||'') : '';
   document.getElementById('btnDelete').style.display = task ? 'block' : 'none';
   overlay.classList.add('open');
 }
 
 function closeForm(){ overlay.classList.remove('open'); form.reset(); }
+
+document.getElementById('f_assignee_select').onchange = (e) => {
+  document.getElementById('f_assignee_other_wrap').style.display = e.target.value === '__other__' ? 'block' : 'none';
+};
 
 document.getElementById('fabAdd').onclick = () => openForm(null);
 document.getElementById('btnCancel').onclick = closeForm;
@@ -219,12 +244,15 @@ form.onsubmit = (e) => {
   const id = document.getElementById('taskId').value;
   const data = {
     title: document.getElementById('f_title').value.trim(),
-    assignee: document.getElementById('f_assignee').value.trim(),
+    assignee: (document.getElementById('f_assignee_select').value === '__other__'
+      ? document.getElementById('f_assignee_other').value.trim()
+      : document.getElementById('f_assignee_select').value),
     status: document.getElementById('f_status').value,
     requested: document.getElementById('f_requested').value,
     contacted: document.getElementById('f_contacted').value,
     deadline: document.getElementById('f_deadline').value,
     internal: document.getElementById('f_internal').value,
+    memo: document.getElementById('f_memo').value.trim(),
   };
   if(!data.title) return;
 
