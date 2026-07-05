@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>対外タスク管理ボード</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@600;900&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{--paper:#F4EFE6;--ink:#211B16;--soft:#574E44;--vermilion:#C0392B;--gold:#B08524;--jade:#3F7A5E;--line:#D8CFBF;--card:#FBF8F2;--danger:#C0392B}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Noto Sans JP',sans-serif;background:var(--paper);color:var(--ink);line-height:1.6;padding:24px 12px 100px;
+    background-image:radial-gradient(circle at 18% 8%,rgba(192,57,43,.05),transparent 40%),radial-gradient(circle at 88% 82%,rgba(176,133,36,.06),transparent 45%)}
+  .wrap{max-width:1200px;margin:0 auto}
+  .head{text-align:center;border-bottom:3px double var(--ink);padding-bottom:16px;margin-bottom:20px}
+  .head .eyebrow{font-size:.74rem;letter-spacing:.3em;color:var(--vermilion);font-weight:700}
+  .head h1{font-family:'Noto Serif JP',serif;font-weight:900;font-size:clamp(1.3rem,4vw,1.9rem);margin:8px 0 4px}
+  .head .meta{font-size:.8rem;color:var(--soft)}
+
+  .toolbar{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:18px}
+  .toolbar select,.toolbar input{font-family:inherit;font-size:.82rem;padding:8px 10px;border:1.5px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink)}
+
+  .board{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+  @media(max-width:900px){.board{grid-template-columns:1fr 1fr}}
+  @media(max-width:560px){.board{grid-template-columns:1fr}}
+
+  .col{background:rgba(251,248,242,.5);border:1.5px solid var(--line);border-radius:14px;padding:10px;min-height:120px}
+  .col-head{display:flex;align-items:center;justify-content:space-between;padding:6px 8px 10px;border-bottom:2px solid var(--line);margin-bottom:8px}
+  .col-title{font-family:'Noto Serif JP',serif;font-weight:700;font-size:.95rem}
+  .col-count{font-size:.72rem;color:#fff;background:var(--soft);border-radius:10px;padding:2px 9px}
+  .col[data-status="未着手"] .col-title{color:var(--soft)}
+  .col[data-status="対応中"] .col-title{color:var(--gold)}
+  .col[data-status="先方回答待ち"] .col-title{color:var(--vermilion)}
+  .col[data-status="完了"] .col-title{color:var(--jade)}
+  .col[data-status="未着手"] .col-count{background:var(--soft)}
+  .col[data-status="対応中"] .col-count{background:var(--gold)}
+  .col[data-status="先方回答待ち"] .col-count{background:var(--vermilion)}
+  .col[data-status="完了"] .col-count{background:var(--jade)}
+
+  .cards{display:flex;flex-direction:column;gap:8px}
+  .task{background:var(--card);border:1.5px solid var(--line);border-radius:10px;padding:11px 12px;box-shadow:0 4px 10px rgba(33,27,22,.06);cursor:pointer}
+  .task .title{font-weight:700;font-size:.9rem;margin-bottom:4px}
+  .task .row{font-size:.74rem;color:var(--soft);display:flex;justify-content:space-between;margin-top:2px}
+  .task .row span:last-child{font-weight:600;color:var(--ink)}
+  .task.overdue{border-color:var(--danger)}
+  .task.overdue .deadline{color:var(--danger);font-weight:700}
+  .task .move{display:flex;gap:4px;margin-top:8px}
+  .task .move button{flex:1;font-size:.68rem;padding:5px 2px;border-radius:6px;border:1px solid var(--line);background:#fff;color:var(--soft)}
+  .task .move button:active{background:var(--gold);color:#fff}
+  .empty{font-size:.76rem;color:var(--soft);text-align:center;padding:14px 0;opacity:.7}
+
+  .fab{position:fixed;right:20px;bottom:20px;width:56px;height:56px;border-radius:50%;background:var(--vermilion);color:#fff;font-size:1.8rem;border:none;box-shadow:0 8px 20px rgba(192,57,43,.35);z-index:20}
+
+  .overlay{position:fixed;inset:0;background:rgba(33,27,22,.5);display:none;align-items:flex-end;justify-content:center;z-index:30}
+  .overlay.open{display:flex}
+  .sheet{background:var(--paper);width:100%;max-width:480px;border-radius:18px 18px 0 0;padding:20px 18px 28px;max-height:88vh;overflow-y:auto}
+  @media(min-width:640px){.overlay{align-items:center}.sheet{border-radius:16px}}
+  .sheet h2{font-family:'Noto Serif JP',serif;font-size:1.1rem;margin-bottom:14px}
+  .field{margin-bottom:12px}
+  .field label{display:block;font-size:.76rem;color:var(--soft);margin-bottom:4px;font-weight:700}
+  .field input,.field select,.field textarea{width:100%;font-family:inherit;font-size:.9rem;padding:10px;border:1.5px solid var(--line);border-radius:8px;background:#fff}
+  .field textarea{resize:vertical;min-height:56px}
+  .sheet-actions{display:flex;gap:8px;margin-top:16px}
+  .sheet-actions button{flex:1;padding:12px;border-radius:9px;border:none;font-weight:700;font-size:.88rem}
+  .btn-save{background:var(--jade);color:#fff}
+  .btn-cancel{background:var(--line);color:var(--ink)}
+  .btn-delete{background:transparent;color:var(--vermilion);border:1.5px solid var(--vermilion) !important}
+</style></head>
+<body><div class="wrap">
+
+  <div class="head">
+    <div class="eyebrow">TASK BOARD</div>
+    <h1>対外タスク管理ボード</h1>
+    <div class="meta">依頼〜先方回答〜完了までを一目で追跡</div>
+  </div>
+
+  <div class="toolbar">
+    <input type="text" id="filterAssignee" placeholder="担当者で絞り込み">
+    <select id="sortKey">
+      <option value="deadline">先方期限が近い順</option>
+      <option value="created">追加が新しい順</option>
+    </select>
+  </div>
+
+  <div class="board" id="board"></div>
+</div>
+
+<button class="fab" id="fabAdd">＋</button>
+
+<div class="overlay" id="overlay">
+  <div class="sheet">
+    <h2 id="formTitle">新しいタスク</h2>
+    <form id="taskForm">
+      <input type="hidden" id="taskId">
+      <div class="field"><label>タスク名・詳細</label><textarea id="f_title" required></textarea></div>
+      <div class="field"><label>担当者</label><input type="text" id="f_assignee"></div>
+      <div class="field"><label>ステータス</label>
+        <select id="f_status">
+          <option>未着手</option><option>対応中</option><option>先方回答待ち</option><option>完了</option>
+        </select>
+      </div>
+      <div class="field"><label>依頼日</label><input type="date" id="f_requested"></div>
+      <div class="field"><label>先方連絡日</label><input type="date" id="f_contacted"></div>
+      <div class="field"><label>先方期限</label><input type="date" id="f_deadline"></div>
+      <div class="field"><label>社内予定日</label><input type="date" id="f_internal"></div>
+      <div class="sheet-actions">
+        <button type="button" class="btn-cancel" id="btnCancel">閉じる</button>
+        <button type="button" class="btn-delete" id="btnDelete" style="display:none">削除</button>
+        <button type="submit" class="btn-save">保存</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+const STORE_KEY = 'taskBoardData_v1';
+const STATUSES = ['未着手','対応中','先方回答待ち','完了'];
+
+function loadTasks(){ try{ return JSON.parse(localStorage.getItem(STORE_KEY)) || []; }catch(e){ return []; } }
+function saveTasks(tasks){ localStorage.setItem(STORE_KEY, JSON.stringify(tasks)); }
+
+let tasks = loadTasks();
+
+const board = document.getElementById('board');
+const overlay = document.getElementById('overlay');
+const form = document.getElementById('taskForm');
+const filterAssignee = document.getElementById('filterAssignee');
+const sortKey = document.getElementById('sortKey');
+
+function todayStr(){ return new Date().toISOString().slice(0,10); }
+
+function render(){
+  board.innerHTML = '';
+  const filterVal = filterAssignee.value.trim().toLowerCase();
+  const sortBy = sortKey.value;
+
+  STATUSES.forEach(status => {
+    const col = document.createElement('div');
+    col.className = 'col';
+    col.dataset.status = status;
+
+    let list = tasks.filter(t => t.status === status);
+    if(filterVal) list = list.filter(t => (t.assignee||'').toLowerCase().includes(filterVal));
+
+    if(sortBy === 'deadline'){
+      list.sort((a,b) => (a.deadline||'9999') < (b.deadline||'9999') ? -1 : 1);
+    } else {
+      list.sort((a,b) => b.createdAt - a.createdAt);
+    }
+
+    col.innerHTML = `<div class="col-head"><span class="col-title">${status}</span><span class="col-count">${list.length}</span></div><div class="cards"></div>`;
+    const cardsEl = col.querySelector('.cards');
+
+    if(list.length === 0){
+      cardsEl.innerHTML = '<div class="empty">タスクなし</div>';
+    } else {
+      list.forEach(t => cardsEl.appendChild(renderCard(t)));
+    }
+    board.appendChild(col);
+  });
+}
+
+function renderCard(t){
+  const el = document.createElement('div');
+  const isOverdue = t.deadline && t.deadline < todayStr() && t.status !== '完了';
+  el.className = 'task' + (isOverdue ? ' overdue' : '');
+  el.innerHTML = `
+    <div class="title">${escapeHtml(t.title)}</div>
+    ${t.assignee ? `<div class="row"><span>担当</span><span>${escapeHtml(t.assignee)}</span></div>` : ''}
+    ${t.deadline ? `<div class="row deadline"><span>先方期限</span><span>${t.deadline}</span></div>` : ''}
+    ${t.internal ? `<div class="row"><span>社内予定日</span><span>${t.internal}</span></div>` : ''}
+    <div class="move"></div>
+  `;
+  const moveEl = el.querySelector('.move');
+  STATUSES.forEach(s => {
+    if(s === t.status) return;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = s;
+    btn.onclick = (e) => { e.stopPropagation(); t.status = s; saveTasks(tasks); render(); };
+    moveEl.appendChild(btn);
+  });
+  el.onclick = () => openForm(t);
+  return el;
+}
+
+function escapeHtml(s){
+  return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function openForm(task){
+  document.getElementById('formTitle').textContent = task ? 'タスクを編集' : '新しいタスク';
+  document.getElementById('taskId').value = task ? task.id : '';
+  document.getElementById('f_title').value = task ? task.title : '';
+  document.getElementById('f_assignee').value = task ? (task.assignee||'') : '';
+  document.getElementById('f_status').value = task ? task.status : '未着手';
+  document.getElementById('f_requested').value = task ? (task.requested||'') : '';
+  document.getElementById('f_contacted').value = task ? (task.contacted||'') : '';
+  document.getElementById('f_deadline').value = task ? (task.deadline||'') : '';
+  document.getElementById('f_internal').value = task ? (task.internal||'') : '';
+  document.getElementById('btnDelete').style.display = task ? 'block' : 'none';
+  overlay.classList.add('open');
+}
+
+function closeForm(){ overlay.classList.remove('open'); form.reset(); }
+
+document.getElementById('fabAdd').onclick = () => openForm(null);
+document.getElementById('btnCancel').onclick = closeForm;
+overlay.onclick = (e) => { if(e.target === overlay) closeForm(); };
+
+document.getElementById('btnDelete').onclick = () => {
+  const id = document.getElementById('taskId').value;
+  if(!confirm('このタスクを削除しますか？')) return;
+  tasks = tasks.filter(t => t.id !== id);
+  saveTasks(tasks);
+  closeForm();
+  render();
+};
+
+form.onsubmit = (e) => {
+  e.preventDefault();
+  const id = document.getElementById('taskId').value;
+  const data = {
+    title: document.getElementById('f_title').value.trim(),
+    assignee: document.getElementById('f_assignee').value.trim(),
+    status: document.getElementById('f_status').value,
+    requested: document.getElementById('f_requested').value,
+    contacted: document.getElementById('f_contacted').value,
+    deadline: document.getElementById('f_deadline').value,
+    internal: document.getElementById('f_internal').value,
+  };
+  if(!data.title) return;
+
+  if(id){
+    const t = tasks.find(x => x.id === id);
+    Object.assign(t, data);
+  } else {
+    tasks.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2), createdAt: Date.now(), ...data });
+  }
+  saveTasks(tasks);
+  closeForm();
+  render();
+};
+
+filterAssignee.oninput = render;
+sortKey.onchange = render;
+
+render();
+</script>
+</body></html>
